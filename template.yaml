@@ -1,0 +1,127 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Parameters:
+  Emoji:
+    Type: String
+    Default: ":taco:"
+  EmojiPlural:
+    Type: String
+    Default: "tacos"
+  MaxPointsPerUserPerDay:
+    Type: String
+    Default: "5"
+  BotName:
+    Type: String
+    Default: "KudosBot"
+  VerificationToken:
+    Type: String
+  BotToken:
+    Type: String
+  AnnouncementChannel:
+    Type: String
+
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 128
+    Runtime: python3.13
+
+    Environment:
+      Variables:
+        PYTHONPATH: "/var/task/src"
+        EMOJI: !Ref Emoji
+        EMOJI_PLURAL: !Ref EmojiPlural
+        MAX_POINTS_PER_USER_PER_DAY: !Ref MaxPointsPerUserPerDay
+        BOT_NAME: !Ref BotName
+        VERIFICATION_TOKEN: !Ref VerificationToken
+        BOT_TOKEN: !Ref BotToken
+        ANNOUNCEMENT_CHANNEL: !Ref AnnouncementChannel
+
+Resources:
+  # --- DynamoDB Table ---
+  EmojiLogTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: emoji_log
+      AttributeDefinitions:
+        - AttributeName: sender
+          AttributeType: S
+        - AttributeName: datetime_given
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sender
+          KeyType: HASH
+        - AttributeName: datetime_given
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+
+  # --- IAM Role for Lambda Functions ---
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: SlackKudosLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SlackKudosDynamoDBAccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                Resource: 
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/emoji_log"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  # --- Event Function ---
+  SlackEventFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src.app.lambda_handler_events
+      Description: "Handles Slack Event Subscriptions"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        SlackEvents:
+          Type: Api
+          Properties:
+            Path: /slack/events
+            Method: post
+
+  # --- Slash Command Function ---
+  SlackCommandFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src.app.lambda_handler_commands
+      Description: "Handles Slack Slash Commands"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        SlackCommands:
+          Type: Api
+          Properties:
+            Path: /slack/commands
+            Method: post
+
+Outputs:
+  SlackEventApiUrl:
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/slack/events"
+    Description: "Slack Event Subscription URL"
+
+  SlackCommandApiUrl:
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/slack/commands"
+    Description: "Slack Slash Command URL"
