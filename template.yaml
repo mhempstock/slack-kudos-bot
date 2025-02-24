@@ -20,13 +20,11 @@ Parameters:
   AnnouncementChannel:
     Type: String
 
-
 Globals:
   Function:
     Timeout: 30
     MemorySize: 128
     Runtime: python3.13
-
     Environment:
       Variables:
         PYTHONPATH: "/var/task/src"
@@ -88,14 +86,21 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: "*"
+              - Effect: Allow
+                Action:
+                  - lambda:GetFunctionConfiguration
+                Resource: "*"
 
-  # --- Event Function ---
+  # --- Event Function with SnapStart ---
   SlackEventFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src.app.lambda_handler_events
       Description: "Handles Slack Event Subscriptions"
       Role: !GetAtt LambdaExecutionRole.Arn
+      SnapStart:
+        ApplyOn: PublishedVersions
+      AutoPublishAlias: SnapStart
       Events:
         SlackEvents:
           Type: Api
@@ -103,13 +108,16 @@ Resources:
             Path: /slack/events
             Method: post
 
-  # --- Slash Command Function ---
+  # --- Slash Command Function with SnapStart ---
   SlackCommandFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src.app.lambda_handler_commands
       Description: "Handles Slack Slash Commands"
       Role: !GetAtt LambdaExecutionRole.Arn
+      SnapStart:
+        ApplyOn: PublishedVersions
+      AutoPublishAlias: SnapStart
       Events:
         SlackCommands:
           Type: Api

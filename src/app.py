@@ -24,6 +24,15 @@ def verify_token(body):
 @logger.inject_lambda_context
 @tracer.capture_lambda_handler
 def lambda_handler_events(event, context):
+    headers = event.get('headers', {})
+    retry_num = headers.get('X-Slack-Retry-Num')
+    retry_reason = headers.get('X-Slack-Retry-Reason')
+    if retry_num:
+        print(f"Slack Retry Detected: Retry Num = {retry_num}, Reason = {retry_reason}")
+        return {
+            "statusCode": 200,
+            "body": "Duplicate event ignored"
+        }
     if event.get("body"):
         body = json.loads(event["body"])
 
@@ -42,6 +51,7 @@ def lambda_handler_events(event, context):
                 "body": body["challenge"]
             }
 
+
         # --- Process the Event ---
         handle_message(body)
 
@@ -53,6 +63,16 @@ def lambda_handler_events(event, context):
 @logger.inject_lambda_context
 @tracer.capture_lambda_handler
 def lambda_handler_commands(event, context):
+    headers = event.get('headers', {})
+    retry_num = headers.get('X-Slack-Retry-Num')
+    retry_reason = headers.get('X-Slack-Retry-Reason')
+    if retry_num:
+        print(f"Slack Retry Detected: Retry Num = {retry_num}, Reason = {retry_reason}")
+        return {
+            "statusCode": 200,
+            "body": "Duplicate event ignored"
+        }
+
     if event.get("body"):
         body = dict(urllib.parse.parse_qsl(event["body"]))
 

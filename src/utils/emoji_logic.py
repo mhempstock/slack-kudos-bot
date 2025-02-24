@@ -74,7 +74,6 @@ def handle_the_giving_of_emojis(sender, message, channel):
         return
     
     # Give the total emojis to each recipient
-    send_dm_to_slack(sender, f'{" ".join(recipients)}')
     for recipient in recipients:
         recipient_name = get_display_name(recipient)
         
